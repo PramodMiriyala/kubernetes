@@ -2036,7 +2036,7 @@ roleRef:
 - **Examples**: Enforce resource quotas, pod security policies, deny specific configurations.
 ---
 
-#### **`kubectl auth can-i` command**
+#### **`kubectl auth can-i` command:**
 
 The `kubectl auth can-i` command is a helpful tool to check whether a user or service account has permission to perform a specific action in your Kubernetes cluster. Here's how you can use it:
 
@@ -2053,13 +2053,187 @@ For example,
    ```bash
    kubectl auth can-i create deployments
    ```
+
+---
+
+### <mark>Custom Resource Definitions (CRDs) & Operators in Kubernetes</mark>
+
+#### Custom Resource Definitions (CRDs)
+
+* **Custom Resource Definitions (CRDs)** allow users to define their own types of resources in Kubernetes, similar to built-in resources like Pods and Services.
+* These custom resources can help you extend Kubernetes' functionality by adding new types of resources specific to your application or domain.
+
+
+**Key Features**:
+- **Extend Kubernetes API**: CRDs enable you to define your own API resources.
+- **Declarative Configuration**: Manage new types of resources in a declarative manner, similar to built-in resources like Pods and Deployments.
+
+Example CRD:
+```yaml
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: myresources.example.com
+spec:
+  group: example.com
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                field1:
+                  type: string
+                field2:
+                  type: integer
+  scope: Namespaced
+  names:
+    plural: myresources
+    singular: myresource
+    kind: MyResource
+    shortNames:
+    - mr
+
+```
+* **Kubectl Support**: Once a CRD is defined, you can use `kubectl` to manage custom resources just like any other Kubernetes resource.
+
+#### **Operators**
+* Operators in Kubernetes are tools that help automate the management of applications.
+* They use Custom Resource Definitions (CRDs) to extend Kubernetes' capabilities, allowing you to package, deploy, and manage complex applications consistently and automatically.
+* They create **reconcile loop** (ensures that the actual state of the cluster matches the desired state)
+*   Lifecycle => CRD + Operator
+
+
 ---
 ---
+
 ## <mark>**Managing Kubernetes Manifests and Configurations**</mark>
 
-- Kubernetes manifests are static, requiring manual updates and version control.
-- For better reusability:
-  - **Kustomize**: Native Kubernetes tool for overlays.
-  - **Helm**: Kubernetes package manager for templating and reuse.
+### <u>**Problem with Kubernetes Manifests**</u>
+
+#### Problem 1: **Static YAML Manifests**
+
+-   K8s manifests are static in nature
+-   During deployments we will have changes to handle
+    -   image tags
+    -   labels
+    -   namespaces
+-   We have to manually change the manifests
+
+#### Problem 2: **No Reusability**
+
+-   Manifest YAML files are not reusable
+
+### <u>**Solution**</u>
+
+1.  Helm:
+  * This works as a package manager to kubernetes
+  * we need to install helm
+2.  Kustomize:
+  * This works as if manages multiple environments
+  * This works with native kubectl
+---
+
+
+## Helm
+
+- **[Refer Here](https://helm.sh/)** for official docs and **[Refer Here](https://helm.sh/docs/intro/install/)** to install Helm.
+- **In Helm:**
+
+    ![Preview](images\img_35.png)
+
+- **Components:**
+    - Helm (client)
+    - Repository (Which hosts the charts)
+    - Chart (An individual package)
 
 ---
+
+## Create a Helm Chart for Basic Deployment
+
+- **Sample Static YAML Manifest:**
+
+```yaml
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx
+  ports:
+  - port: 80
+    targetPort: 80
+```
+
+---
+### **Helm Charts**
+
+### activity1: helm chart creation
+
+- **Let's create a Helm chart:**
+
+```bash
+helm create activity1
+```
+* A **folder** called as activity1 is create with following content
+
+<img src='images\img_36.png' alt='Helm_Folder' width='300'>
+
+```
+# Example Chart file structure
+wordpress/
+  Chart.yaml            # A YAML file containing information about the chart
+  LICENSE               # OPTIONAL: A plain text file containing the license for the chart
+  README.md             # OPTIONAL: A human-readable README file
+  values.yaml           # The default configuration values for this chart
+  values.schema.json    # OPTIONAL: A JSON Schema for imposing a structure on the values.yaml file
+  charts/               # A directory containing any charts upon which this chart depends.
+  crds/                 # Custom Resource Definitions
+  templates/            # A directory of templates that, when combined with values,
+                        # will generate valid Kubernetes manifest files.
+    templates/NOTES.txt # OPTIONAL: A plain text file containing short usage notes
+```
+---
+
+
+* [Refer here](https://helm.sh/docs/topics/charts/) for official docs on Charts.
+* Helm use go templating syntax [Refer here](https://helm.sh/docs/chart_template_guide/)
+* **Use <mark>helm online validator</mark> to verify expression** [Refer Here](https://helm-playground.com/)
+* Helm creates manifests and passes it to the kubectl after \
+  replacing dynamic expression (template expressions)
+
+* [Refer Here](https://helm-playground.com/cheatsheet.html)for synaxes used in Helm.
+* [Example]()
+* Now create a chart repository and push the chart to repository
