@@ -2,7 +2,7 @@
 
 ### **1. Monolithic Systems (Previous Generation)**
 
-- Let’s imagine we are building an **e-commerce system**.
+- Let's imagine we are building an **e-commerce system**.
 
 <img src="images/img_01.png" alt="E-commerce System" width="400" />
 
@@ -2209,11 +2209,10 @@ helm create activity1
 ```
 * A **folder** called as activity1 is create with following content
 
-<img src='images\img_36.png' alt='Helm_Folder' width='300'>
 
 ```
-# Example Chart file structure
-wordpress/
+# Structure of Helm Charts
+my-chart/
   Chart.yaml            # A YAML file containing information about the chart
   LICENSE               # OPTIONAL: A plain text file containing the license for the chart
   README.md             # OPTIONAL: A human-readable README file
@@ -2225,15 +2224,41 @@ wordpress/
                         # will generate valid Kubernetes manifest files.
     templates/NOTES.txt # OPTIONAL: A plain text file containing short usage notes
 ```
+```
+# Example of Chart structure
+my-chart/
+├── Chart.yaml
+├── values.yaml
+├── templates/
+│   ├── deployment.yaml
+│   └── service.yaml
+└── charts/
+```
 ---
 
 
 * [Refer here](https://helm.sh/docs/topics/charts/) for official docs on Charts.
+
+
+### Installing a Helm Chart
+
+To install a Helm chart, you can use the following command:
+
+```bash
+helm install <release-name> <chart-name> --values <release-name>/values.yaml
+# Using --values to pass file with Custom Values
+```
+
 * Helm use go templating syntax [Refer here](https://helm.sh/docs/chart_template_guide/)
 * **Use <mark>helm online validator</mark> to verify expression** [Refer Here](https://helm-playground.com/)
 * Helm creates manifests and passes it to the kubectl after \
   replacing dynamic expression (template expressions)
 
-* [Refer Here](https://helm-playground.com/cheatsheet.html)for synaxes used in Helm.
+<img src='images\img_37.png' alt='helm validator' width='1000'>
+
+* [Refer Here](https://helm-playground.com/cheatsheet.html) for synaxes used in Helm.
 * [Example]()
 * Now create a chart repository and push the chart to repository
+
+---
+
