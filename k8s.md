@@ -2261,4 +2261,1509 @@ helm install <release-name> <chart-name> --values <release-name>/values.yaml
 * Now create a chart repository and push the chart to repository
 
 ---
+---
 
+## <mark>Using **variables** within Helm templates.</mark>
+
+* Each line demonstrates different functions and methods for handling values from the `values.yaml` file in a Helm chart.
+
+### 1. Basic Value Reference
+
+- **`name: {{ .Values.storageClassName }}`**
+  - This simply retrieves the value of `storageClassName` from the `values.yaml` file. If `storageClassName` is defined, it will be used directly.
+
+### 2. Quoting Values
+
+- **`name: {{ .Values.storageClassName | quote }}`**
+  - This retrieves the value of `storageClassName` and wraps it in quotes. This is useful for ensuring that the value is treated as a string, especially if it contains special characters or spaces.
+
+### 3. Default Values
+
+- **`name: {{ .Values.storageClassName | default "default value" }}`**
+  - This retrieves `storageClassName`, but if it is not set (i.e., it is `nil`), it will use `"default value"` instead. This provides a fallback option.
+
+### 4. Required Values
+
+- **`name: {{ .Values.storageClassName | required ".storageClassName must be set" }}`**
+  - This checks if `storageClassName` is set. If it is not, it will return an error with the specified message, preventing the chart from being installed without this critical value.
+
+### 5. Trimming Whitespace
+
+- **`name: {{ .Values.storageClassName | trim }}`**
+  - This removes any leading or trailing whitespace from the value of `storageClassName`.
+
+### 6. Formatted Strings
+
+- **`name: {{ printf "%s-%d" .Values.storageClassName .Values.storageClassVersion }}`**
+  - This uses the `printf` function to format a string that combines `storageClassName` and `storageClassVersion`. For example, if `storageClassName` is "fast" and `storageClassVersion` is "1", it would produce "fast-1".
+	- %d ==> for integer, %s ==> for string
+
+### 7. Replacing Placeholders
+
+- **`name: {{ .Values.storageClassName | replace "{placeholder}" "example" }}`**	
+  - This replaces occurrences of `{placeholder}` in `storageClassName` with "example". This can be useful for dynamic configurations.
+
+### 8. Variable Assignment
+
+- **`{{ $fullName := printf "%s %s" .Values.firstName .Values.lastName }}`**
+  - This assigns a formatted string (combining first and last names) to a variable named `$fullName`, which can be used later in the template.
+
+### 9. Trimming Specific Characters
+
+- **`name: {{ .Values.storageClassName | trimAll "/" }}`**
+  - This removes all occurrences of the character `/` from both ends of the `storageClassName`.
+
+- **`name: {{ .Values.storageClassName | trimPrefix "/" }}`**
+  - This removes a leading `/`, if present, from the beginning of `storageClassName`.
+
+- **`name: {{ .Values.storageClassName | trimSuffix "/" }}`**
+  - This removes a trailing `/`, if present, from the end of `storageClassName`.
+
+### 10. Changing Case
+
+- **`name: {{ .Values.storageClassName | lower }}`**
+  - Converts the value of `storageClassName` to lowercase.
+
+- **`name: {{ .Values.storageClassName | upper }}`**
+  - Converts the value of `storageClassName` to uppercase.
+
+---
+
+## <mark>**Built-in's**</mark>
+
+The built-in expressions you provided are part of Helm's templating capabilities, allowing you to access various contextual information about the release, chart, and files. Here’s a detailed explanation of each expression:
+
+### 1. Release Information
+
+- **`{{ .Release.Name }}`**:
+  - This expression retrieves the name of the current Helm release. The release name is specified when you install or upgrade a chart and is used to identify that specific deployment within the Kubernetes cluster.
+
+- **`{{ .Release.Namespace }}`**:
+  - This expression fetches the namespace in which the Helm release is deployed. If no namespace is specified during installation, it defaults to the `default` namespace.
+
+### 2. Chart Information
+
+- **`{{ .Chart.Name }}`**:
+  - This retrieves the name of the chart being deployed. The chart name is defined in the `Chart.yaml` file and represents the application or service being packaged.
+
+- **`{{ .Chart.Version }}`**:
+  - This expression gets the version of the chart being used. This version is also specified in the `Chart.yaml` file, which helps track which version of an application is deployed.
+
+### 3. File Access
+
+- **`{{ .Files.Get "config.ini" }}`**:
+  - This expression retrieves the contents of a file named `config.ini` located in the `files/` directory of your Helm chart. The `.Files.Get` function allows you to include external configuration files directly into your templates, making it easier to manage complex configurations.
+
+---
+## <mark>**Conditionals**</mark>
+```go
+{{ if .Values.enablePersistence }}
+  # ...
+{{ else if .Values.enableFilesystem }}
+  # ...
+{{ else }}
+  # ...
+{{ end }}
+
+# equal, not equal
+{{ if eq .Values.environment "production" }}
+{{ if ne .Values.environment "production" }}
+
+# and, or
+{{ if and (eq .Values.environment "production") (eq .Values.host "minikube") }}
+{{ if or (eq .Values.environment "production") (eq .Values.host "minikube") }}
+
+# not (negation)
+{{ if not (eq .Values.environment "production") }}
+
+# greater than, less than
+{{ if gt (len .Values.items) 3 }}
+{{ if gte (len .Values.items) 3 }}
+{{ if lt (len .Values.items) 3 }}
+{{ if lte (len .Values.items) 3 }}
+
+# strings
+{{ if .Values.name | contains "example" }}
+{{ if .Values.name | hasPrefix "foobar-" }}
+{{ if .Values.name | hasSuffix "-foobar" }}
+{{ if .Values.name | regexMatch "^[a-z]+$" }}
+
+# lists
+{{ if .Values.items | has "example" }}
+
+# ternary
+{{ ternary "returned if true" "returned if false" .Values.someBoolean }}
+```
+---
+## <mark>**Loops**</mark>
+
+loops are used to iterate over collections such as lists (arrays) and maps (dictionaries).
+
+### 1. Simple Loop
+
+```yaml
+volumes:
+  {{ range .Values.volumeIds }}
+  - volumeName: {{ . }}
+  {{ end }}
+```
+
+- **Explanation**:
+  - **`{{ range .Values.volumeIds }}`**: This starts a loop over the `volumeIds` array defined in your `values.yaml` file.
+  - **`.`**: Inside the loop, `.` refers to the current item in the iteration. In this case, it represents each individual volume ID.
+  - **`{{ end }}`**: This ends the loop.
+  
+- **Usage**: This is useful for generating a list of items based on an array of values. For example, if `volumeIds` contains multiple volume IDs, this loop will create a corresponding list of volumes in the output YAML.
+
+### 2. Loop with Named Variable
+
+```yaml
+volumes:
+  {{ range $volumeId := .Values.volumeIds }}
+  - volumeName: {{ $volumeId }}
+  {{ end }}
+```
+
+- **Explanation**:
+  - **`{{ range $volumeId := .Values.volumeIds }}`**: This starts a loop similar to the previous example but uses a named variable `$volumeId` to refer to the current item in the iteration.
+  - **`{{ $volumeId }}`**: This explicitly references the named variable instead of using `.`.
+  
+- **Usage**: This approach is beneficial when you want to make your code more readable or when you need to use the variable multiple times within the loop.
+
+### 3. Loop with Index (Array) or Key (Dict)
+
+```yaml
+volumes:
+  {{ range $key, $value := .Values.configuration }}
+  - {{ $key }}: {{ $value }}
+  {{ end }}
+```
+
+- **Explanation**:
+  - **`{{ range $key, $value := .Values.configuration }}`**: This starts a loop over a map (dictionary) called `configuration`. Here, `$key` represents each key in the map, and `$value` represents the corresponding value.
+  - **`{{ $key }}` and `{{ $value }}`**: These are used to output the key-value pairs from the map.
+  
+- **Usage**: This is useful for generating key-value pairs in your YAML output when working with dictionaries. For example, if `configuration` contains settings for your application, this loop will create entries for each configuration setting.
+
+### Example Values File
+
+To illustrate how these loops work, here’s an example `values.yaml` file that could be used with the above templates:
+
+```yaml
+volumeIds:
+  - volume1
+  - volume2
+  - volume3
+
+configuration:
+  setting1: value1
+  setting2: value2
+```
+
+### Example Rendered Output
+
+Using the above values file with your loops would yield:
+
+```yaml
+volumes:
+  - volumeName: volume1
+  - volumeName: volume2
+  - volumeName: volume3
+
+# For configuration output
+setting1: value1
+setting2: value2
+```
+---
+
+## <mark>**Indentation**</mark>
+
+### 1. Using `toYaml` with `indent`
+
+```yaml
+env:
+  {{ .Values.environmentVariables | toYaml | indent 2 }}
+```
+
+- **`toYaml`**: This function converts a given data structure (like a map or list) into a YAML-formatted string. However, it does not automatically adjust the indentation of the output relative to its context.
+- **`indent 2`**: This function adds two spaces of indentation to each line of the output from `toYaml`. This is useful when you want to ensure that the generated YAML is properly nested under the `env:` key.
+
+**Output Example**:
+If `environmentVariables` contains:
+```yaml
+environmentVariables:
+  VAR1: value1
+  VAR2: value2
+```
+
+The rendered output will be:
+```yaml
+env:
+    VAR1: value1
+    VAR2: value2
+```
+
+### 2. Using `toYaml` with `nindent`
+
+```yaml
+env: {{ .Values.environmentVariables | toYaml | nindent 2 }}
+```
+
+- **`nindent 2`**: Similar to `indent`, but it also ensures that the first line of the output starts on a new line. This is particularly useful when you want to avoid any potential issues with inline content or when the preceding line ends with content.
+
+**Output Example**:
+Using the same `environmentVariables`, the rendered output will be:
+```yaml
+env:
+  VAR1: value1
+  VAR2: value2
+```
+---
+
+
+---
+## <mark>**Includes**</mark>
+
+[Refer Here](https://helm-playground.com/cheatsheet.html) for syntax.
+
+Let's assume some example values in the `values.yaml` file and demonstrate how the templates would work with the given definitions.
+
+---
+
+### **Example `values.yaml`**
+```yaml
+image:
+  name: my-app
+  tag: v1.2.3
+
+foobar: "This is a {placeholder} string."
+```
+
+---
+
+### **Templates**
+1. **`your-project.image`**
+   ```yaml
+   {{- define "your-project.image" -}}
+   {{ printf "%s:%s" .Values.image.name .Values.image.tag | quote }}
+   {{- end -}}
+   ```
+
+2. **`your-project.someInclude`**
+   ```yaml
+   {{- define "your-project.someInclude" -}}
+   {{ . | replace "{placeholder}" "example" }}
+   {{- end -}}
+   ```
+
+---
+
+### **Rendered YAML Output**
+
+1. **For `image` Field**  
+   If you use the following in your deployment file:
+
+   ```yaml
+   image: {{ include "your-project.image" . }}
+   ```
+
+   With the given `values.yaml`, the output will be:
+
+   ```yaml
+   image: "my-app:v1.2.3"
+   ```
+
+2. **For `foobar` Field**  
+   If you use the following in your deployment file:
+
+   ```yaml
+   foobar: {{ include "your-project.someInclude" .Values.foobar }}
+   ```
+
+   With the given `values.yaml`, the output will be:
+
+   ```yaml
+   foobar: "This is a example string."
+   ```
+
+---
+
+### **Full Rendered Output Example**
+
+Combining both templates in a deployment file:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-deployment
+spec:
+  template:
+    spec:
+      containers:
+        - name: example-container
+          image: {{ include "your-project.image" . }}
+          env:
+            - name: EXAMPLE_FOOBAR
+              value: {{ include "your-project.someInclude" .Values.foobar }}
+```
+
+After rendering with Helm, the output would look like this:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: example-deployment
+spec:
+  template:
+    spec:
+      containers:
+        - name: example-container
+          image: "my-app:v1.2.3"
+          env:
+            - name: EXAMPLE_FOOBAR
+              value: "This is a example string."
+```
+
+This showcases how reusable templates can simplify and streamline your Helm charts.
+
+You're absolutely correct that you **could directly write** something like this:
+
+```yaml
+image: {{ printf "%s:%s" .Values.image.name .Values.image.tag | quote }}
+```
+
+This is valid and would work perfectly. However, there are **several reasons** why defining reusable templates (like in `_helpers.tpl`) is often a better approach in Helm charts:
+
+
+### **Summary**
+- Use reusable templates when logic is complex or shared across multiple places for better **maintainability**, **readability**, and **consistency**.
+- Use inline expressions for **one-off, simple cases**.
+
+If you're creating production-grade Helm charts or working in a team, reusable templates in `_helpers.tpl` are generally the better choice.
+
+---
+
+Let me break this down more simply. This code decides **where the value of `foobarPassword` should come from** for a Kubernetes Secret. There are **three possible options** in order of priority:
+
+---
+## <mark>**Lookup**</mark>
+
+### **[Explanation of Lookup code](https://helm-playground.com/cheatsheet.html#lookup)**
+
+1. **Check if the Secret Already Exists**
+   ```yaml
+   {{ $previous := lookup "v1" "Secret" .Release.Namespace "some-secret" }}
+   ```
+   - `lookup` checks if a Kubernetes Secret named `some-secret` exists in the same namespace as your Helm release.
+   - If it exists, its data is saved in `$previous`. If it doesn’t exist, `$previous` is empty (`null`).
+
+---
+
+2. **Decide Where `foobarPassword` Comes From**
+   The code checks these conditions **in order**:
+
+   #### **Option 1: Use an Existing Secret**
+   ```yaml
+   {{- if $previous }}
+   foobarPassword: {{ $previous.data.foobarPassword | quote }}
+   ```
+   - If the Secret (`$previous`) exists:
+     - Use the `foobarPassword` already stored in the Secret.
+     - This prevents overwriting an existing password.
+
+   **Example:** If the `some-secret` exists and already has:
+   ```yaml
+   data:
+     foobarPassword: "existingPassword"
+   ```
+   The code will reuse `"existingPassword"`.
+
+---
+
+   #### **Option 2: Use a User-Provided Password**
+   ```yaml
+   {{- else if .Values.foobarPassword }}
+   foobarPassword: {{ .Values.foobarPassword | b64enc | quote }}
+   ```
+   - If the Secret doesn’t exist **but** the user has provided a password in `values.yaml` (e.g., `foobarPassword: myPassword`):
+     - Take the password from `.Values.foobarPassword`.
+     - Encode it using `b64enc` (required for Kubernetes Secrets) and use it.
+
+   **Example:** If `values.yaml` contains:
+   ```yaml
+   foobarPassword: "myUserPassword"
+   ```
+   The output will look like this:
+   ```yaml
+   foobarPassword: "bXlVc2VyUGFzc3dvcmQ="
+   ```
+   (This is `myUserPassword` in base64.)
+
+---
+
+   #### **Option 3: Generate a Random Password**
+   ```yaml
+   {{- else }}
+   foobarPassword: {{ randAlphaNum 40 | b64enc | quote }}
+   ```
+   - If there’s no existing Secret and no password in `values.yaml`:
+     - Generate a random password with 40 alphanumeric characters.
+     - Encode it with `b64enc` and use it.
+
+   **Example:** The generated password might look like this:
+   ```yaml
+   foobarPassword: "YWJjMTIzNDU2Nzg5MHJhbmRvbVBhc3M="
+   ```
+   (The actual value will vary each time because it’s random.)
+
+---
+
+### **Why This Logic is Useful**
+- **Reusing Existing Data:** If a Secret already exists, it keeps the same password instead of overwriting it.
+- **User Customization:** If a user wants a specific password, they can set it in `values.yaml`.
+- **Fallback Security:** If neither of the above exists, it ensures a strong random password is always created.
+
+---
+
+### **Example Outputs**
+
+Here’s how the rendered YAML will look in different scenarios:
+
+#### **Scenario 1: Existing Secret**
+If the Kubernetes Secret `some-secret` exists and has:
+```yaml
+data:
+  foobarPassword: "existingPassword"
+```
+
+The rendered Secret will reuse the password:
+```yaml
+data:
+  foobarPassword: "existingPassword"
+```
+
+---
+
+#### **Scenario 2: Password in `values.yaml`**
+If the user specifies a password in `values.yaml`:
+```yaml
+foobarPassword: "myUserPassword"
+```
+
+The rendered Secret will use the user-provided password:
+```yaml
+data:
+  foobarPassword: "bXlVc2VyUGFzc3dvcmQ="
+```
+
+---
+
+#### **Scenario 3: No Existing Secret or User-Provided Password**
+If there’s no existing Secret and no `foobarPassword` in `values.yaml`, the password will be randomly generated:
+```yaml
+data:
+  foobarPassword: "YWJjMTIzNDU2Nzg5MHJhbmRvbVBhc3M="
+```
+
+---
+
+## <mark>**Fail**</mark>
+```go
+{{ if eq .Values.storageClassName "foobar1" }}
+  # ...
+{{ else if eq .Values.storageClassName "foobar2" }}
+  # ...
+{{ else }}
+  {{ fail ".storageClassName is not recognized" }}
+{{ end }}
+```
+
+* **`{{ fail ".storageClassName is not recognized" }}`**:
+   - If none of the conditions are satisfied, this line will execute. The `fail` function causes Helm to terminate the rendering process and return an error message.
+   - The message `".storageClassName is not recognized"` provides feedback indicating that an unrecognized value was provided for `storageClassName`.
+
+---
+## <mark>**Dates**</mark>
+
+```go
+{{ now | date "2006-01-02T15:04:05" }}
+```
+
+- **`now`**: This function retrieves the current date and time.
+- **`date "2006-01-02T15:04:05"`**: This formats the current date and time according to the specified layout. In Go templates, the layout must be defined using a specific reference date (`2006-01-02T15:04:05`), which is a unique way of defining formats in Go.
+
+---
+## <mark>**Base64**</mark>
+```go
+{{ .Values.someData | b64enc }}
+{{ .Values.someData | b64dec }}
+```
+
+* This expression takes the value of someData from the **values.yaml** file and **encodes** it in **Base64** format using the **b64enc function**.
+
+---
+
+## <mark>**UUIDs**</mark>
+```go
+id: {{ uuidv4 }}
+```
+
+* **{{ uuidv4 }}**:
+  * This function call generates a new **UUID version 4**. 
+  * **UUIDs** are **128-bit numbers** used to **uniquely identify information** in computer systems.
+  * **Version 4 UUIDs** are **randomly** generated, making them suitable for use as **unique identifiers** in various applications
+
+---
+
+## <mark>**Crypto**</mark>
+
+```go
+{{ .Values.someData | sha256sum }}
+
+{{ .Values.someData | encryptAES "secret key" }}
+{{ .Values.someData | decryptAES "secret key" }}
+```
+
+### 1. SHA256 Hashing
+
+```yaml
+id: {{ .Values.someData | sha256sum }}
+```
+
+- **Purpose**: This expression takes the value of `someData` from the `values.yaml` file and computes its SHA256 hash using the `sha256sum` function.
+
+### 2. AES Encryption
+
+```yaml
+{{ .Values.someData | encryptAES "secret key" }}
+```
+
+- **Purpose**: This expression encrypts the value of `someData` using AES (Advanced Encryption Standard) with the provided `"secret key"`.
+
+### 3. AES Decryption
+
+```yaml
+{{ .Values.someData | decryptAES "secret key" }}
+```
+
+- **Purpose**: This expression decrypts a previously encrypted string using AES with the provided `"secret key"`.
+
+---
+
+## <mark>**useful Helm commands along with their descriptions**</mark>
+
+
+
+| Command                                       | Description                                                                                      | Flags/Options                                                                                                 | Example                                                    |
+|-----------------------------------------------|--------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| `helm install <release> <chart>`             | Install a chart and create a new release.                                                      | `--namespace <namespace>`, `--values <file>`, `--set <key=value>`, `--timeout <duration>`, `--wait`, `--atomic`, `--create-namespace` | `helm install my-release stable/mysql --namespace my-namespace` |
+| `helm upgrade <release> <chart>`             | Upgrade a release to a new version of a chart or modify its configuration.                     | `--install`, `--values <file>`, `--set <key=value>`, `--timeout <duration>`, `--wait`, `--no-hooks`        | `helm upgrade my-release stable/mysql --set mysqlRootPassword=newpassword` |
+| `helm rollback <release> [revision]`        | Roll back a release to a previous version.                                                     | None                                                                                                         | `helm rollback my-release 1`                              |
+| **`helm uninstall <release>`**                | Delete a release and free up the resources associated with it.                                 | `--namespace <namespace>`                                                                                    | `helm uninstall my-release --namespace my-namespace`      |
+| **`helm list`**                               | List all the installed releases.                                                                | `--all`, `--uninstalled`, `--max <number>`, `--filter <regex>`                                            | `helm list --all`                                        |
+| **`helm status <release>`**                   | Get the status of a release, including last deployment time, namespace, state, and resources.  | `--revision=<revision>`, `--show-desc=false`, `--show-resources=false`, `-o, --output=<format>`           | `helm status my-release --show-desc=true`                |
+| **`helm search repo <keyword>`**              | Search for available charts in Helm repositories.                                              | None                                                                                                         | `helm search repo mysql`                                  |
+| **`helm repo add <name> <url>`**             | Add a Helm repository to your local environment.                                               | None                                                                                                         | `helm repo add stable https://charts.helm.sh/stable`     |
+| **`helm repo update`**                        | Update the local cache of Helm repositories.                                                   | None                                                                                                         | `helm repo update`                                       |
+| **`helm lint <chart>`**                       | Lint a chart to validate its syntax and configuration.                                         | None                                                                                                         | `helm lint my-chart`                                     |
+| **`helm package <chart>`**                    | Package a chart directory into a compressed chart archive.                                     | None                                                                                                         | `helm package my-chart`                                   |
+| **`helm pull <chart>`**                       | Download a chart and extract the archive’s contents into a directory.                          | `--untar`, `--untardir <directory>`                                                                         | `helm pull stable/mysql --untar --untardir ./mydir`     |
+| **`helm history <release>`**                  | View the release history of a chart.                                                           | None                                                                                                         | `helm history my-release`                                 |
+| **`helm show chart <chart>`**                 | Display information about a specific chart.                                                    | None                                                                                                         | `helm show chart stable/mysql`                            |
+| **`helm get all <release>`**                  | Download all information about a release.                                                      | None                                                                                                         | `helm get all my-release`                                 |
+| **`helm get values <release>`**               | Download the values file for a release.                                                        | None                                                                                                         | `helm get values my-release`                              |
+| **Helpful Options for Install/Upgrade/Rollback**  | **Description**                                                                                  | **Example**                                                                                                |
+| **`--timeout <duration>`**                    | Duration to wait for Kubernetes commands to complete (default is 5m0s).                        | Example: 5m, 10s                                                                                            |
+| **`--wait`**                                  | Wait until all Pods are in a ready state before marking the release as successful.             | Use with install or upgrade commands                                                                         |
+| **Set Values**                                | Set multiple values at once using comma separation.                                             | Example:  --set key1=value1,key2=value2                                                                     |
+
+---
+
+## <mark>**override specific values in a Helm chart**</mark>
+
+### 1. Using the `--set` Flag
+
+For quick and simple overrides, you can use the `--set` flag directly from the command line. This is ideal for making small adjustments without modifying a values file.
+
+**Example Command:**
+
+```bash
+helm install my-nginx bitnami/nginx --set replicaCount=3
+```
+
+You can also set multiple values at once by separating them with commas:
+
+```bash
+helm install my-nginx bitnami/nginx --set replicaCount=3,service.type=NodePort
+```
+
+### 2. Using a Custom `values.yaml` File
+
+For more complex configurations, it's better to create a separate `values.yaml` file where you define all your overrides in one place. This method helps keep your changes organized and maintainable.
+
+**Example Custom Values File (`custom-values.yaml`):**
+
+```yaml
+replicaCount: 3
+service:
+  type: LoadBalancer
+  port: 8080
+```
+
+**Deploying with Custom Values:**
+
+```bash
+helm install my-nginx bitnami/nginx -f custom-values.yaml
+```
+
+### 3. Combining `--set` with a Custom Values File
+
+You can combine both methods for maximum flexibility. For instance, you might have a base `values.yaml` file but need to override a single value dynamically during deployment.
+
+**Example Command:**
+
+```bash
+helm install my-nginx bitnami/nginx -f custom-values.yaml --set service.port=8081
+```
+
+This command will apply all settings from `custom-values.yaml`, but override the `service.port` value.
+
+### 4. Checking Effective Values
+
+After installing or upgrading a release, you can check which values are currently in effect using:
+
+```bash
+helm get values my-nginx
+```
+
+This command will show all the values being used for the release, including any custom overrides applied.
+
+---
+---
+
+## <mark>**Kustomize**</mark>
+
+*   Kustomize simplifies templating without strange expressions
+*   [Refer Here](https://kustomize.io/) for official docs
+*   [Refer Here](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/) for kustomize documents
+*   [Refer Here](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/)
+*   [Refer Here](https://github.com/kubernetes-sigs/kustomize/tree/master/examples/multibases) for multi base
+
+---
+---
+
+## <mark>**kustomize folder structure**</mark>
+
+<img src='images\img_38.png' alt='folder structure' width='200'>
+
+---
+---
+
+### <mark>**base**</mark>
+
+**deployment.yaml**
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preschool
+  labels:
+    app: preschool
+spec:
+  minReadySeconds: 10
+  replicas: 3
+  selector:
+    matchLabels:
+      app: preschool
+  template:
+    metadata:
+      name: preschool
+      labels:
+        app: preschool
+    spec:
+      containers:
+        - name: preschool
+          image: shaikkhajaibrahim/preschool:1.1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: 250m
+              memory: 300Mi
+          ports:
+            - containerPort: 80
+          startupProbe:
+            httpGet:
+              path: /preschool
+              port: 80
+```
+
+**service.yaml**
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: preschool-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: preschool
+  ports:
+    - name: preschool-port
+      port: 80
+      targetPort: 80
+```
+
+**kustomization.yaml**
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - service.yaml
+  - deployment.yaml
+```
+
+---
+
+### <mark>**overlays**</mark>
+
+#### **dev**
+
+**deployment.yaml**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preschool
+  labels:
+    app: preschool
+spec:
+  minReadySeconds: 10
+  replicas: 1
+```
+
+**kustomization.yaml**
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base
+namePrefix: dev-
+patches:
+  - path: deployment.yaml  # Path to your patch file
+    target:
+      kind: Deployment           # Specify the kind of resource
+      name: preschool   # The name of the resource you want to patch
+```
+
+---
+
+### qa
+
+**deployment.yaml**
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preschool
+  labels:
+    app: preschool
+spec:
+  minReadySeconds: 10
+  replicas: 5
+```
+
+**kustomization.yaml**
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- ../../base
+namePrefix: qa-
+patches:
+  - path: deployment.yaml  # Path to your patch file
+    target:
+      kind: Deployment           # Specify the kind of resource
+      name: preschool   # The name of the resource you want to patch | or |
+# patchesStrategicMerge:
+#   - deployment.yaml   # depreciated way
+```
+
+### **Applying patches**
+
+```bash
+kubectl apply -k overlays/dev
+```
+
+---
+---
+
+## ArgoCD
+
+**Typical deployment into k8s**
+
+<img src='images\gitops_1.png' alt='typical deployment' width='600'>
+
+**GitOps**
+
+* **Git is the single source for truth for Your Application as-well-as Infrastucture**.
+
+<img src='images\gitops_2.png' alt='typical deployment' width='600'>
+
+---
+#### Key Points
+
+* **Argo cd can be configure with Git repo for**
+  * **manifests**
+  * **helm**
+  * **kustomize**
+
+* **To configure argo with git we can execute**
+  * **commands**
+  * **manifest files (yaml)**
+
+---
+---
+
+## <mark>**Argo CD Tutorial**</mark>
+
+### **Argo CD Tutorial with a Kubernetes Manifest Example in a Git Repository**
+
+- [Official Docs](https://argo-cd.readthedocs.io/en/stable/)
+- [Git Repo Used in Class](https://github.com/dummyrepos/argocd-test-repo-nov24)
+
+---
+
+### **Step 1: Set Up the Git Repository**
+
+1. **Create a Git Repository:**  
+   Create a new Git repository on your preferred Git hosting service (e.g., GitHub, GitLab).
+
+2. **Add a Sample Kubernetes Manifest:**  
+   Clone your repository and add a sample Kubernetes manifest. Below is an example of a `guestbook` application.
+
+**Directory Structure:**
+```
+my-repo/
+├── manifests/
+   ├── deployment.yaml
+   ├── service.yaml
+```
+
+**`deployment.yaml`:**
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guestbook
+  labels:
+    app: guestbook
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: guestbook
+  template:
+    metadata:
+      labels:
+        app: guestbook
+    spec:
+      containers:
+      - name: guestbook
+        image: redis:alpine
+        ports:
+        - containerPort: 6379
+```
+
+**`service.yaml`:**
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: guestbook
+spec:
+  selector:
+    app: guestbook
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 6379
+  type: ClusterIP
+```
+
+3. **Push the Files to Git:**  
+   ```bash
+   git add .
+   git commit -m "Add guestbook Kubernetes manifests"
+   git push origin main
+   ```
+
+---
+
+### **Step 2: Install Argo CD**
+
+Follow the installation steps provided in the main tutorial:
+
+1. **Create the namespace:**
+   ```bash
+   kubectl create namespace argocd
+   ```
+
+2. **Install Argo CD:**
+   ```bash
+   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+   ```
+
+3. **Port-forward the service to access the UI:**
+   ```bash
+   kubectl port-forward svc/argocd-server -n argocd 8080:443
+   ```
+
+---
+
+### **Step 3: Create the Argo CD Application**
+
+1. **Login to Argo CD:**  
+   Retrieve the admin password:
+   ```bash
+   kubectl get secret argocd-initial-admin-secret -n argocd -o jsonpath="{.data.password}" | base64 -d
+   ```
+   Login via the CLI:
+   ```bash
+   argocd login localhost:8080
+   # or 
+   argocd login localhost:8080 --username admin --password <YOUR_PASSWORD> --insecure
+   ```
+
+2. **Add Your Git Repository to Argo CD:**  
+   Replace `<GIT_REPO_URL>` with the URL of your repository:
+   ```bash
+   argocd repo add <GIT_REPO_URL>
+   ```
+
+3. **Create an Argo CD Application:**  
+   Run the following command to create an application in Argo CD:
+   ```bash
+   argocd app create guestbook \
+     --repo <GIT_REPO_URL> \
+     --path manifests \
+     --dest-server https://kubernetes.default.svc \
+     --dest-namespace default
+     --sync-policy automated
+   ```
+
+   Example:
+   ```bash
+   argocd app create guestbook \
+     --repo https://github.com/your-username/my-repo.git \
+     --path manifests \
+     --dest-server https://kubernetes.default.svc \
+     --dest-namespace default
+   ```
+
+---
+
+### **Step 4: Sync the Application**
+
+1. **Sync the Application via CLI:**  
+   ```bash
+   argocd app sync guestbook
+   ```
+
+2. **Sync the Application via UI:**
+   - Access the Argo CD web UI at `https://localhost:8080`.
+   - Login using the admin credentials.
+   - Click on the `guestbook` application.
+   - Click the “Sync” button to deploy the application.
+
+3. **Verify the Deployment:**  
+   Check the resources in the Kubernetes cluster:
+   ```bash
+   kubectl get all -n default
+   ```
+
+---
+
+### **Step 5: Monitor and Manage the Application**
+
+1. **Check Application Status:**  
+   ```bash
+   argocd app get guestbook
+   ```
+
+2. **View Logs:**  
+   To view logs of a specific pod:
+   ```bash
+   kubectl logs <POD_NAME> -n default
+   ```
+
+3. **Update the Application:**
+   - Modify the manifests in the Git repository.
+   - Commit and push the changes.
+   - Argo CD will detect the changes and show the application as `OutOfSync`.
+
+4. **Sync Again:**  
+   ```bash
+   argocd app sync guestbook
+   ```
+
+---
+
+### **Step 6: Enable Automatic Sync (Optional)**
+
+To enable auto-sync for the `guestbook` application:
+
+```bash
+argocd app set guestbook --sync-policy automated
+```
+
+---
+
+### **Step 7: Clean Up**
+
+1. **To delete the application and resources:**
+   ```bash
+   argocd app delete guestbook
+   ```
+
+2. **To uninstall Argo CD:**
+   ```bash
+   kubectl delete namespace argocd
+   ```
+
+---
+---
+Here’s the formatted version for your notes:  
+
+---
+
+## <mark>**Argo CD Tutorial with Helm Chart Deployment**</mark>
+
+---
+
+### **Step 1: Set Up the Git Repository with Helm Charts**  
+
+**Create a Git Repository:**  
+- Create a new repository to store your Helm chart or use an existing one.  
+
+**Add a Sample Helm Chart:**  
+- Create a Helm chart using `helm create` or download an existing one.  
+
+**Example directory structure for a Helm chart:**  
+```
+my-repo/
+└── helm/
+    └── guestbook/
+        ├── Chart.yaml
+        ├── values.yaml
+        ├── templates/
+        │   ├── deployment.yaml
+        │   └── service.yaml
+```  
+
+**`Chart.yaml`:**  
+```yaml
+apiVersion: v2
+name: guestbook
+description: A sample Helm chart for a Kubernetes application
+version: 1.0.0
+appVersion: 1.0.0
+```  
+
+**`values.yaml`:**  
+```yaml
+replicas: 3
+image:
+  repository: redis
+  tag: alpine
+service:
+  type: ClusterIP
+  port: 6379
+```  
+
+**`templates/deployment.yaml`:**  
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        ports:
+        - containerPort: {{ .Values.service.port }}
+```  
+
+**`templates/service.yaml`:**  
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+  - port: 80
+    targetPort: {{ .Values.service.port }}
+  selector:
+    app: {{ .Chart.Name }}
+```  
+
+**Push the Chart to Git:**  
+```bash
+git add .
+git commit -m "Add Helm chart for guestbook application"
+git push origin main
+```  
+
+---
+
+### **Step 2: Install Argo CD**  
+Follow the steps in the [Argo CD installation tutorial](https://argo-cd.readthedocs.io/en/stable/getting_started/). Ensure Argo CD is installed and running in your Kubernetes cluster.  
+
+---
+
+### **Step 3: Deploy the Helm Chart Using Argo CD**  
+
+**Add Your Git Repository to Argo CD:**  
+```bash
+argocd repo add <GIT_REPO_URL>
+```  
+
+**Create an Argo CD Application for the Helm Chart:**  
+Replace `<GIT_REPO_URL>` and `<APP_NAME>` with your repository URL and application name.  
+```bash
+argocd app create guestbook-helm \
+--repo <GIT_REPO_URL> \
+--path helm/guestbook \
+--dest-server https://kubernetes.default.svc \
+--dest-namespace default \
+--helm-set replicas=3 \
+--helm-set image.repository=redis \
+--helm-set image.tag=alpine
+```  
+
+**Example:**  
+```bash
+argocd app create guestbook-helm \
+--repo https://github.com/your-username/my-repo.git \
+--path helm/guestbook \
+--dest-server https://kubernetes.default.svc \
+--dest-namespace default
+```  
+
+**Sync the Application:**  
+```bash
+argocd app sync guestbook-helm
+```  
+
+---
+
+### **Step 4: Use Helm Repository (Optional)**  
+
+**Add the Helm Repository:**  
+```bash
+argocd repo add https://charts.bitnami.com/bitnami --type helm
+```  
+
+**Create an Application Using a Helm Chart:**  
+```bash
+argocd app create guestbook-helm \
+--repo https://charts.bitnami.com/bitnami \
+--helm-chart redis \
+--revision 17.4.0 \
+--dest-server https://kubernetes.default.svc \
+--dest-namespace default \
+--helm-set replicaCount=3
+```  
+
+**Sync the Application:**  
+```bash
+argocd app sync guestbook-helm
+```  
+
+---
+
+### **Step 5: Monitor and Manage the Application**  
+
+**Check Application Status:**  
+```bash
+argocd app get guestbook-helm
+```  
+
+**View Application Details in the Web UI:**  
+- Access the Argo CD web UI at `https://localhost:8080`.  
+- Navigate to the `guestbook-helm` application to see deployment details, status, and logs.  
+
+**Update the Helm Values:**  
+```bash
+argocd app set guestbook-helm --helm-set replicas=5
+argocd app sync guestbook-helm
+```  
+
+**Rollback to a Previous Version:**  
+```bash
+argocd app rollback guestbook-helm <REVISION_NUMBER>
+```  
+
+---
+
+### **Step 6: Enable Auto-Sync for Helm Applications**  
+```bash
+argocd app set guestbook-helm --sync-policy automated
+```  
+
+---
+
+### **Step 7: Clean Up**  
+
+**Delete the Helm application and resources:**  
+```bash
+argocd app delete guestbook-helm
+```  
+
+**Uninstall Argo CD:**  
+```bash
+kubectl delete namespace argocd
+```  
+
+---
+---
+## <mark>**Argo CD Git repository configuration in yaml**</mark>
+
+* Example of an **Argo CD Git repository configuration** in YAML format. 
+* This configuration can be used to define a Git repository in Argo CD using a `ConfigManagementPlugin` or via the `Application` manifest.
+
+---
+
+### **Git Repository Configuration Using `Application` Manifest**
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: example-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/your-repo.git
+    targetRevision: HEAD  # Can be a branch, tag, or commit hash
+    path: manifests/example-app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+  syncPolicy:
+    automated:
+      prune: true          # Automatically delete resources that are no longer in Git
+      selfHeal: true       # Automatically sync out-of-sync resources
+```
+
+---
+
+### **Key Fields Explained**
+1. **`metadata.name`**: The name of the Argo CD application.
+2. **`metadata.namespace`**: The namespace where Argo CD is installed (default: `argocd`).
+3. **`spec.source.repoURL`**: The URL of your Git repository.
+4. **`spec.source.targetRevision`**: Specifies the Git branch, tag, or commit to track.
+5. **`spec.source.path`**: The path in the repository where the manifests are located.
+6. **`spec.destination.server`**: The API server URL for the Kubernetes cluster.
+7. **`spec.destination.namespace`**: The namespace where the application will be deployed.
+8. **`spec.syncPolicy.automated`**: Enables automatic synchronization.
+
+---
+
+### **Example for Multiple Applications**
+If you have multiple applications in a single repository, you can create separate `Application` manifests for each.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app1
+  namespace: dev
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/your-repo.git
+    targetRevision: develop
+    path: manifests/app1
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app1
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: app2
+  namespace: qa
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/your-org/your-repo.git
+    targetRevision: qa
+    path: manifests/app2
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: app2
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+---
+
+### **Apply the Manifest**
+Save the YAML to a file, e.g., `argocd-app.yaml`, and apply it using `kubectl`:
+```bash
+kubectl apply -f argocd-app.yaml
+```
+
+---
+
+### **Optional: Add Credentials for a Private Git Repository**
+If your Git repository is private, you'll need to configure repository credentials in Argo CD:
+```bash
+argocd repo add https://github.com/your-org/your-private-repo.git \
+  --username <USERNAME> \
+  --password <PASSWORD>
+```
+
+Alternatively, create a `Secret` to store credentials:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-creds
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: repository
+data:
+  url: aHR0cHM6Ly9naXRodWIuY29tL3lvdXItb3JnL3lvdXItcmVwby5naXQ=  # Base64 of repo URL
+  username: <BASE64_ENCODED_USERNAME>
+  password: <BASE64_ENCODED_PASSWORD>
+```
+---  
+---
+
+## <mark>Well-Known Kubernetes Issues and How to Resolve Them</mark>
+
+- [K8s Troubleshooting Docs](https://komodor.com/learn/kubernetes-troubleshooting-the-complete-guide/)
+
+* CreateContainerConfigError
+* ImagePullBackOff or ErrImagePull
+* CrashLoopBackOff
+* Kubernetes Node Not Ready
+
+---
+---
+
+## <mark>**DevSecOps**</mark>
+
+<img src='images\flow.png' alt='gitops flow' width='700'>
+
+
+<img src='images\DevSecOps.png' alt='DevSecOps_pipeline' width='650'>
+
+### **Code Level Security**
+- **SCA (Software Composition Analysis)**:  
+  Checks for vulnerabilities in third-party dependencies.
+- **SAST (Static Application Security Testing)**:  
+  Identifies security issues within the code itself.
+
+### **Post-Deployment Security**
+- **DAST (Dynamic Application Security Testing)**:  
+  Tests the running application for vulnerabilities by simulating attacks.
+
+---
+
+## **Understanding CVE in Cybersecurity**
+
+### **CVE Definition**
+- **CVE (Common Vulnerabilities and Exposures)**:  
+  A standardized system that assigns unique IDs to publicly known cybersecurity vulnerabilities.
+
+### **Origin and Purpose**
+- **Founded in 1999** by the **MITRE Corporation**.  
+  Funded by the U.S. Department of Homeland Security.  
+  Facilitates standardized communication and tracking of vulnerabilities.
+
+### **How CVE Works**
+- Each CVE has:
+  - A **unique identifier** (e.g., CVE-YYYY-NNNNN).
+  - A brief **description** of the vulnerability.
+  - **References** to additional resources.
+
+### **Criteria for Inclusion**
+1. **Independently Fixable**: Resolvable without addressing other issues.  
+2. **Vendor Acknowledgment**: Recognized by the vendor as a security flaw.  
+3. **Single Codebase Impact**: Affects a specific software or product.
+
+### **Importance of CVE**
+- **Facilitates Communication**: Standardized IDs simplify discussions.  
+- **Enhances Security Management**: Helps prioritize and address vulnerabilities.  
+- **Supports Risk Management**: Tools reference CVEs for automated detection.
+
+### **Key CVE Resources**
+1. **MITRE CVE Database**: The primary source for CVEs.  
+2. **National Vulnerability Database (NVD)**: Provides enriched details like severity scores.  
+3. **CVE Details**: Offers exploits, tools, and additional advisory links.  
+4. **Vendor Databases**: Tailored CVE data for specific products.
+
+---
+
+## **OWASP (Open Web Application Security Project)**
+
+### **Overview**
+- A nonprofit organization founded in **2001**, aimed at improving software security.
+- Offers free, community-driven resources and tools for secure application development.
+
+### **Key Initiatives**
+1. **OWASP Top 10**:  
+   Lists the most critical web application security risks.  
+   Example: SQL Injection, XSS (Cross-Site Scripting).
+2. **Community-driven**:  
+   Open collaboration for innovation and shared knowledge.
+3. **Free Resources**:  
+   All tools and documentation are accessible to the public.  
+4. **Global Reach**:  
+   Over **250 local chapters worldwide** promoting security awareness.
+
+### **Mission and Vision**
+- **Mission**: Empower organizations to develop secure software through education, tools, and best practices.  
+- **Vision**: Eliminate insecure software by addressing key vulnerabilities.
+
+---
+
+## <mark>**WorkShop**</mark>
+
+<img src='images\DevSecOps_01.png' alt='DevSecOps_pipeline' width='600'>
+
+[**Github Repo**](https://github.com/mydummyrepo/chess-game-tutorial) \
+[**Actions**](https://github.com/mydummyrepo/chess-game-tutorial/actions)

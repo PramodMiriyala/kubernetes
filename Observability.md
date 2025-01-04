@@ -493,11 +493,252 @@ Here's a modified version of your notes for clarity and readability:
 5. Click **Import** to add the dashboard to your Grafana instance.
 
 ---
+---
 
-### Getting Logs from kubernetes
+## <mark>Getting Logs from kubernetes</mark>
 
-* Fluentd
-* loki
-* elastic beats
+### **Popular Log Agents**
 
-#### Using loki to create grafana dashboard
+1. **Fluentd**: A widely-used log aggregator that can route logs to various destinations (e.g., Elasticsearch, Loki, Splunk).
+2. **Loki**: A lightweight, Prometheus-style log aggregation system, specifically designed to work seamlessly with Grafana.
+3. **Elastic Beats**: A set of lightweight shippers (e.g., Filebeat) to send logs to Elasticsearch.
+
+
+### **Comparison of Different Approaches**
+| **Approach**          | **Best For**                                                | **Ease of Use** | **Flexibility** |
+|------------------------|------------------------------------------------------------|-----------------|-----------------|
+| **Exporters**          | Existing applications or systems (e.g., databases, hosts). | High            | Medium          |
+| **Client Libraries**   | Applications with custom metrics.                          | Medium          | High            |
+| **OpenTelemetry**      | Unified observability (metrics, traces, logs).             | Medium          | Very High       |
+
+---
+
+### **Step-by-Step: Setting Up Loki on Kubernetes**
+
+#### **1. Install Loki Using Helm Chart**
+
+1. **Add the Grafana Helm Repository**:
+   ```bash
+   helm repo add grafana https://grafana.github.io/helm-charts
+   helm repo update
+   ```
+
+2. **Install Loki Stack**:
+   The Loki stack includes Loki, Promtail (log collector), and Grafana (optional).
+   ```bash
+   helm install loki grafana/loki-stack --namespace monitoring --create-namespace
+   ```
+
+   - By default, Promtail will be deployed to collect logs from Kubernetes pods and send them to Loki.
+   - You can customize the Helm chart values using a `values.yaml` file (optional).
+
+3. **Verify Installation**:
+   Check that Loki and Promtail are running:
+   ```bash
+   kubectl get pods -n monitoring
+   ```
+   You should see pods for Loki and Promtail.
+
+---
+
+#### **2. Install Grafana**
+
+If Grafana is not already installed, follow these steps:
+
+1. **Install Grafana Using Helm**:
+   ```bash
+   helm install grafana grafana/grafana --namespace monitoring
+   ```
+
+2. **Get Grafana Admin Password**:
+   ```bash
+   kubectl get secret --namespace monitoring grafana -o jsonpath="{.data.admin-password}" | base64 --decode
+   ```
+
+3. **Access Grafana UI**:
+   - Port-forward Grafana to your local machine:
+     ```bash
+     kubectl port-forward svc/grafana -n monitoring 3000:80
+     ```
+   - Open Grafana in a browser: [http://localhost:3000](http://localhost:3000).
+   - Log in with:
+     - Username: `admin`
+     - Password: The password retrieved in the previous step.
+
+---
+
+#### **3. Add Loki as a Data Source in Grafana**
+
+1. **Go to Data Sources**:
+   - In the Grafana UI, navigate to **Configuration → Data Sources**.
+   - Click **Add data source**.
+
+2. **Select Loki**:
+   - Choose **Loki** from the list of available data sources.
+
+3. **Configure Loki**:
+   - URL: `http://loki:3100` (use the Kubernetes service name for Loki).
+   - Click **Save & Test** to verify the connection.
+
+---
+
+#### **4. Create a Dashboard in Grafana to View Logs**
+
+1. **Create a New Dashboard**:
+   - In Grafana, go to **Dashboards → New Dashboard → Add a new panel**.
+
+2. **Query Loki for Logs**:
+   - Use the **Explore** tab to test log queries and refine them.
+   - Example Query: `{job="kubernetes-pods"}` (fetches logs from all Kubernetes pods).
+
+3. **Configure Panel**:
+   - Select the **Logs** visualization type for the panel.
+   - Add filters or labels to narrow down the logs (e.g., namespace, pod name).
+
+4. **Save the Dashboard**:
+   - Save the dashboard with a meaningful name.
+
+---
+
+### **Optional: Customizing Promtail Configuration**
+
+Promtail collects logs from Kubernetes pods and forwards them to Loki. You can customize its configuration to filter logs or add custom labels.
+
+1. **Edit Promtail ConfigMap**:
+   ```bash
+   kubectl edit configmap loki-promtail -n monitoring
+   ```
+
+2. **Sample Promtail Configuration**:
+   ```yaml
+   scrape_configs:
+   - job_name: kubernetes-pods
+     kubernetes_sd_configs:
+     - role: pod
+     relabel_configs:
+     - source_labels: [__meta_kubernetes_pod_label_app]
+       target_label: app
+     - source_labels: [__meta_kubernetes_namespace]
+       target_label: namespace
+     - source_labels: [__meta_kubernetes_pod_name]
+       target_label: pod_name
+   ```
+
+3. **Apply Changes**:
+   After modifying the configuration, restart Promtail:
+   ```bash
+   kubectl rollout restart deployment loki-promtail -n monitoring
+   ```
+
+---
+
+### **Key Queries for Logs in Loki**
+
+- **Fetch All Logs**:
+  ```text
+  {job="kubernetes-pods"}
+  ```
+
+- **Filter by Namespace**:
+  ```text
+  {namespace="default"}
+  ```
+
+- **Filter by Pod Name**:
+  ```text
+  {pod_name="my-app-pod"}
+  ```
+
+- **Search for Specific Terms in Logs**:
+  ```text
+  {namespace="default"} |= "error"
+  ```
+
+---
+---
+
+## <mark>How to scrape application metrics ?</mark>
+
+* Getting Metrics from application into Prometheus
+  * Exporters: To get metrics from well known servers (good for existing code.)
+  * Prometheus Client
+  * Open telemetry
+
+* Logs:
+  * Any enterprise apps generate logs
+  * If the logs are written to files use **log agents** (**popular: fluentd**)
+  * Developers can code to directly send logs to centralized log server
+
+* Traces:
+  * There are many apm (application performance monitoring) tools to scrape traces
+    * Ex: **Dynatrace**, **Datadog**, **Splunk**, etc.,
+  * For sending traces of your application to almost any tool there is a standard called as open telemetry.
+
+---
+
+
+### <mark>**OpenTelemetry**</mark>
+OpenTelemetry is a modern observability framework for collecting **metrics, traces, and logs**. It allows you to export metrics to Prometheus and many other backends.
+
+1. **Advantages of OpenTelemetry**:
+   - Vendor-neutral observability.
+   - Unified instrumentation for metrics, traces, and logs.
+   - Supports multiple exporters (e.g., Prometheus, Jaeger, Tempo).
+
+2. **Steps to Use OpenTelemetry for Metrics**:
+   - **Install OpenTelemetry SDK**:
+     Example for Python:
+     ```bash
+     pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-prometheus
+     ```
+
+   - **Instrument Your Application**:
+     Use OpenTelemetry SDK to record metrics. Example in Python:
+     ```python
+     from opentelemetry import metrics
+     from opentelemetry.sdk.metrics import MeterProvider
+     from opentelemetry.exporter.prometheus import PrometheusMetricReader
+     from prometheus_client import start_http_server
+     import random
+     import time
+
+     # Start Prometheus client server
+     start_http_server(8000)
+
+     # Set up OpenTelemetry Meter Provider
+     reader = PrometheusMetricReader()
+     metrics.set_meter_provider(MeterProvider(metric_readers=[reader]))
+     meter = metrics.get_meter("example-meter")
+
+     # Create a Counter
+     request_counter = meter.create_counter(
+         "app_requests", description="Number of processed requests"
+     )
+
+     # Record metrics
+     while True:
+         request_counter.add(1, {"service": "example-service"})
+         time.sleep(random.random())
+     ```
+
+   - **Expose Metrics**:
+     Metrics are exposed at the `/metrics` endpoint on port `8000`.
+
+   - **Configure Prometheus**:
+     Add the OpenTelemetry endpoint to `scrape_configs`:
+     ```yaml
+     scrape_configs:
+       - job_name: 'otel-metrics'
+         static_configs:
+           - targets: ['localhost:8000']
+     ```
+
+   - **Optional: Use OpenTelemetry Collector**:
+     OpenTelemetry Collector acts as an intermediary to collect and process telemetry data before exporting to Prometheus. You can deploy it in Kubernetes as a Helm chart:
+     ```bash
+     helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
+     helm install otel-collector open-telemetry/opentelemetry-collector \
+       --namespace monitoring
+     ```
+
+---
